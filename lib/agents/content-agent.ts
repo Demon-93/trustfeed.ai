@@ -45,6 +45,8 @@ Respond with this exact JSON structure:
   "topicsCovered": ["topic1", "topic2"],
   "actuallyAnswersQuery": boolean,
   "informationDensity": "high|medium|low",
+  "thumbnailTitleMatch": boolean,
+  "sourcesOrDataMentioned": boolean,
   "redFlags": ["flag1", "flag2"],
   "contentSummary": "1-2 sentence summary of content quality",
   "whatIsMissing": "What the video doesn't cover"
@@ -120,6 +122,9 @@ export async function runContentAgent(
       transcriptSummary: parsed.contentSummary || "No summary available",
       redFlags: Array.isArray(parsed.redFlags) ? parsed.redFlags : [],
       analyzedAt: new Date().toISOString(),
+      thumbnailTitleMatch: Boolean(parsed.thumbnailTitleMatch ?? true),
+      whatIsMissing: parsed.whatIsMissing || "",
+      sourcesOrDataMentioned: Boolean(parsed.sourcesOrDataMentioned ?? false),
     }
 
     await setVideo(videoId, analysis as unknown as Record<string, unknown>)

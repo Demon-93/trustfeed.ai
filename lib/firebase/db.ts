@@ -36,3 +36,15 @@ export async function setSearch(queryHash: string, data: unknown): Promise<void>
   const db = getAdminDb()
   await db.collection("searches").doc(queryHash).set(data as Record<string, unknown>, { merge: true })
 }
+
+export async function getUser(uid: string): Promise<Record<string, unknown> | null> {
+  const db = getAdminDb()
+  const docRef = db.collection("users").doc(uid)
+  const docSnap = await docRef.get()
+  return docSnap.exists ? (docSnap.data() as Record<string, unknown>) : null
+}
+
+export async function updateUser(uid: string, data: Record<string, unknown>): Promise<void> {
+  const db = getAdminDb()
+  await db.collection("users").doc(uid).set(data, { merge: true })
+}

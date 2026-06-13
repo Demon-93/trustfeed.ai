@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAdminDb } from "@/lib/firebase/admin"
+import { getAdminDb, getAdminAuth } from "@/lib/firebase/admin"
 
 export async function POST(request: NextRequest) {
   try {
+    const authHeader = request.headers.get("authorization")
+    if (!authHeader?.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const idToken = authHeader.split("Bearer ")[1]
+    const decoded = await getAdminAuth().verifyIdToken(idToken)
+
     const body = await request.json()
     const { videoId, type } = body
 
@@ -24,6 +32,7 @@ export async function POST(request: NextRequest) {
     await db.collection("feedback").add({
       videoId,
       type,
+      uid: decoded.uid,
       createdAt: new Date().toISOString(),
     })
 

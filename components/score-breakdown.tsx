@@ -3,17 +3,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface ScoreBreakdownProps {
-  credentialComponent: number
-  contentComponent: number
-  engagementComponent: number
-  consistencyComponent: number
+  credentialScore: number
+  contentScore: number
+  engagementScore: number
+  consistencyScore: number
 }
 
 export function ScoreBreakdown({
-  credentialComponent,
-  contentComponent,
-  engagementComponent,
-  consistencyComponent,
+  credentialScore,
+  contentScore,
+  engagementScore,
+  consistencyScore,
 }: ScoreBreakdownProps) {
   return (
     <Card>
@@ -22,20 +22,20 @@ export function ScoreBreakdown({
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex justify-between">
-          <span>Creator Credentials</span>
-          <span className="font-medium">{Math.round(credentialComponent)}/100</span>
+          <span>Creator Credentials (35%)</span>
+          <span className="font-medium">{credentialScore}/100</span>
         </div>
         <div className="flex justify-between">
-          <span>Content Quality</span>
-          <span className="font-medium">{Math.round(contentComponent)}/100</span>
+          <span>Content Quality (35%)</span>
+          <span className="font-medium">{contentScore}/100</span>
         </div>
         <div className="flex justify-between">
-          <span>Engagement Rate</span>
-          <span className="font-medium">{Math.round(engagementComponent)}/100</span>
+          <span>Engagement Rate (20%)</span>
+          <span className="font-medium">{engagementScore}/100</span>
         </div>
         <div className="flex justify-between">
-          <span>Channel Consistency</span>
-          <span className="font-medium">{Math.round(consistencyComponent)}/100</span>
+          <span>Channel Consistency (10%)</span>
+          <span className="font-medium">{consistencyScore}/100</span>
         </div>
       </CardContent>
     </Card>

@@ -6,8 +6,21 @@ function calculateEngagementScore(video: VideoResult): number {
   return Math.min(Math.round(ratio * 25), 100)
 }
 
-function calculateConsistencyScore(): number {
-  return 70
+function calculateConsistencyScore(video: VideoResult): number {
+  let score = 50
+
+  if (video.viewCount > 100000) score += 10
+  if (video.viewCount > 1000000) score += 10
+
+  if (video.likeCount && video.viewCount) {
+    const likeRatio = video.likeCount / video.viewCount
+    if (likeRatio > 0.03) score += 10
+    if (likeRatio > 0.05) score += 10
+  }
+
+  if (video.tags && video.tags.length > 3) score += 10
+
+  return Math.min(score, 100)
 }
 
 export function calculateTrustScore(
@@ -18,7 +31,7 @@ export function calculateTrustScore(
   const credentialComponent = creator.credentialScore * 0.35
   const contentComponent = content.contentScore * 0.35
   const engagementComponent = calculateEngagementScore(video) * 0.20
-  const consistencyComponent = calculateConsistencyScore() * 0.10
+  const consistencyComponent = calculateConsistencyScore(video) * 0.10
 
   const overall = Math.round(
     credentialComponent + contentComponent + engagementComponent + consistencyComponent

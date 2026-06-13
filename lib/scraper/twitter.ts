@@ -1,5 +1,4 @@
-import axios from "axios"
-import * as cheerio from "cheerio"
+import { searchDDG } from "./duckduckgo"
 
 interface TwitterData {
   bio: string
@@ -9,21 +8,25 @@ interface TwitterData {
 
 export async function scrapeTwitter(username: string): Promise<TwitterData | null> {
   try {
-    const url = `https://nitter.net/${username}`
-    const response = await axios.get(url, {
-      timeout: 10000,
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      },
-    })
+    const results = await searchDDG(`${username} site:twitter.com OR site:x.com`)
 
-    const $ = cheerio.load(response.data)
+    if (results.length === 0) {
+      return null
+    }
 
-    const bio = $(".profile-bio").text().trim() || ""
-    const followers = $(".followers").text().trim() || "0"
-    const pinnedTweet = $(".pinned").first().text().trim() || ""
+    const twitterResult = results.find(
+      (r) => r.url.includes("twitter.com") || r.url.includes("x.com")
+    )
 
-    return { bio, followers, pinnedTweet }
+    if (!twitterResult) {
+      return null
+    }
+
+    return {
+      bio: twitterResult.snippet || "",
+      followers: "",
+      pinnedTweet: "",
+    }
   } catch {
     return null
   }

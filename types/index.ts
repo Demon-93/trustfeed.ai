@@ -45,6 +45,9 @@ export interface ContentAnalysis {
   transcriptSummary: string
   redFlags: string[]
   analyzedAt: string
+  thumbnailTitleMatch?: boolean
+  whatIsMissing?: string
+  sourcesOrDataMentioned?: boolean
 }
 
 export interface TrustScore {

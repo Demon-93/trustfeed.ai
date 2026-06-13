@@ -1,15 +1,18 @@
 "use client"
 
+import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { TrustBadge } from "@/components/trust-badge"
 import { RedFlagAlert } from "@/components/red-flag-alert"
 import { RankedResult } from "@/types"
-import { ExternalLink, Eye, Bookmark } from "lucide-react"
+import { ExternalLink, Eye, Bookmark, BookmarkCheck } from "lucide-react"
 import Link from "next/link"
 
 interface VideoCardProps {
   result: RankedResult
+  isSaved?: boolean
+  onToggleSave?: (videoId: string) => void
 }
 
 function formatViewCount(count: number): string {
@@ -28,8 +31,14 @@ function formatDuration(duration: string): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`
 }
 
-export function VideoCard({ result }: VideoCardProps) {
+export function VideoCard({ result, isSaved = false, onToggleSave }: VideoCardProps) {
   const { video, creator, content, trustScore } = result
+  const [saved, setSaved] = useState(isSaved)
+
+  const handleSave = () => {
+    setSaved(!saved)
+    onToggleSave?.(video.videoId)
+  }
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -114,9 +123,18 @@ export function VideoCard({ result }: VideoCardProps) {
                   Full Analysis
                 </Button>
               </Link>
-              <Button size="sm" variant="outline">
-                <Bookmark className="h-4 w-4 mr-1" />
-                Save
+              <Button size="sm" variant="outline" onClick={handleSave}>
+                {saved ? (
+                  <>
+                    <BookmarkCheck className="h-4 w-4 mr-1" />
+                    Saved
+                  </>
+                ) : (
+                  <>
+                    <Bookmark className="h-4 w-4 mr-1" />
+                    Save
+                  </>
+                )}
               </Button>
             </div>
           </div>

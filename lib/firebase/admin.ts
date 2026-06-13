@@ -1,8 +1,10 @@
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app"
 import { getFirestore, type Firestore } from "firebase-admin/firestore"
+import { getAuth, type Auth } from "firebase-admin/auth"
 
 let app: App | null = null
 let db: Firestore | null = null
+let auth: Auth | null = null
 
 function getAdminApp(): App {
   if (!app) {
@@ -26,4 +28,11 @@ export function getAdminDb(): Firestore {
     db = getFirestore(getAdminApp())
   }
   return db
+}
+
+export function getAdminAuth(): Auth {
+  if (!auth) {
+    auth = getAuth(getAdminApp())
+  }
+  return auth
 }

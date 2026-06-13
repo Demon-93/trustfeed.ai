@@ -2,6 +2,7 @@
 
 import { useState, useEffect, createContext, useContext, ReactNode } from "react"
 import { User, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, getAuth } from "firebase/auth"
+import { app } from "@/lib/firebase/config"
 
 interface AuthContextType {
   user: User | null
@@ -23,9 +24,7 @@ export function useAuth() {
 
 function getFirebaseAuth() {
   if (typeof window === "undefined") return null
-  const { getApp } = require("firebase/app")
-  const app = getApp()
-  return getAuth(app)
+  return getAuth(app())
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

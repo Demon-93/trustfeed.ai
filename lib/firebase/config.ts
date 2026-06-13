@@ -8,21 +8,20 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 }
 
-let app: FirebaseApp | null = null
 let auth: Auth | null = null
 
-function getApp(): FirebaseApp {
-  if (!app) {
-    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0]
+function getFirebaseApp(): FirebaseApp {
+  if (getApps().length === 0) {
+    return initializeApp(firebaseConfig)
   }
-  return app
+  return getApps()[0]
 }
 
 function getFirebaseAuth(): Auth {
   if (!auth) {
-    auth = getAuth(getApp())
+    auth = getAuth(getFirebaseApp())
   }
   return auth
 }
 
-export { getApp as app, getFirebaseAuth as auth }
+export { getFirebaseApp as app, getFirebaseAuth as auth }

@@ -1,0 +1,1455 @@
+# YT Trust Agent — Complete Build Plan
+> An open-source AI agent that finds the most trustworthy, relevant YouTube videos for any topic — saving you from clickbait and unqualified creators.
+
+---
+
+## Table of Contents
+
+1. [The Problem](#the-problem)
+2. [The Solution](#the-solution)
+3. [Key Differentiators](#key-differentiators)
+4. [Product Features](#product-features)
+5. [Tech Stack — 100% Free](#tech-stack--100-free)
+6. [System Architecture](#system-architecture)
+7. [Folder Structure](#folder-structure)
+8. [Firestore Schema](#firestore-schema)
+9. [Agent Pipeline — Deep Dive](#agent-pipeline--deep-dive)
+10. [Trust Score Formula](#trust-score-formula)
+11. [API Routes](#api-routes)
+12. [Frontend Pages & Components](#frontend-pages--components)
+13. [Free Tier Limits & Strategy](#free-tier-limits--strategy)
+14. [Phase-by-Phase Build Plan](#phase-by-phase-build-plan)
+15. [Open Code Prompts — Copy & Paste](#open-code-prompts--copy--paste)
+16. [Environment Variables Reference](#environment-variables-reference)
+17. [Getting Started Checklist](#getting-started-checklist)
+
+---
+
+## The Problem
+
+YouTube has an enormous amount of content. When you search for something specific — investing, Python, nutrition, law — you get dozens of videos. The problems:
+
+- **Clickbait is everywhere.** Thumbnails and titles lie. You waste 10 minutes to realize the video has zero depth.
+- **Creator credibility is invisible.** You have no idea if the person teaching you finance is a Goldman Sachs analyst or a 19-year-old with no experience.
+- **No topic-specific trust.** A creator trusted in fitness may be completely unqualified in nutrition science.
+- **No quality signal.** YouTube's algorithm optimizes for watch time and engagement — not accuracy, depth, or trustworthiness.
+
+**Result:** Hours wasted on low-quality, misleading, or irrelevant content.
+
+---
+
+## The Solution
+
+An AI agent where you describe what you want to learn, and it:
+
+1. Searches YouTube for relevant videos
+2. Verifies each creator's real-world credentials across social media and the web
+3. Analyzes the video transcript to confirm it actually covers what you asked
+4. Scores everything and returns the top ranked, trustworthy results
+5. Explains exactly *why* each video was recommended
+
+**One sentence:** Find me the most trustworthy video on [topic] — from someone actually qualified to talk about it.
+
+---
+
+## Key Differentiators
+
+| What Exists | What We Add |
+|---|---|
+| YouTube search (engagement-optimized) | Trust-optimized search |
+| Subscriber count as proxy for trust | Real credential verification |
+| You guess if video is good | Transcript analysis confirms content quality |
+| Generic results | Topic-domain matched credibility |
+| No explanation | "Why we trust this" per video |
+
+**The moat:** Nobody combines creator credential verification + transcript content analysis + topic-domain matching together. This is the gap.
+
+---
+
+## Product Features
+
+### Core Features (MVP)
+- Natural language search ("best videos on compound interest for beginners")
+- Creator credential verification via LinkedIn, Twitter/X, DuckDuckGo
+- Transcript-based content quality analysis
+- Trust Score (0–100) per video with color-coded badge
+- "Why we trust this" explanation per result
+- Results sorted by Trust Score, not views
+- Evergreen vs trending flag
+- Creator profile deep-dive page
+- Video detail page with full trust breakdown
+
+### User Features
+- Google Sign-in (Firebase Auth)
+- Save videos to personal list
+- Search history
+- Feedback on results (thumbs up/down)
+
+### Smart Features
+- Clickbait detection (thumbnail vs actual content mismatch)
+- Red flag warnings ("Creator's expertise doesn't match this topic")
+- No-transcript penalty (auto-reduced score)
+- Cache means results get faster over time as database grows
+
+---
+
+## Tech Stack — 100% Free
+
+| Layer | Tool | Why |
+|---|---|---|
+| **Frontend** | Next.js 14 + Tailwind + shadcn/ui | Full-stack in one repo, Vercel free tier |
+| **Backend** | Next.js API Routes | Same app, no separate deployment needed |
+| **LLM** | Groq API (Llama 3.3 70B) | Free tier, 500+ tokens/sec, very capable |
+| **Database** | Firebase Firestore | Free tier, NoSQL, perfect for our data shape |
+| **Auth** | Firebase Auth | Free, Google Sign-in built-in |
+| **Cache** | Upstash Redis | Free tier, 10K req/day |
+| **YouTube Data** | YouTube Data API v3 | Free, 10K units/day |
+| **Transcripts** | youtube-captions-scraper (npm) | Completely free, no API key |
+| **Web Scraping** | Axios + Cheerio | Free, open source |
+| **Creator Search** | DuckDuckGo Instant Answer API | Free, no API key needed |
+| **Social Scraping** | Nitter (Twitter mirror) + LinkedIn public | Free crawling |
+| **Deployment** | Vercel (single deploy) | Free tier, perfect for Next.js |
+
+### Key Notes on Free Tools
+
+**Groq:**
+- Free tier: ~14,400 requests/day
+- Models: `llama-3.3-70b-versatile` (primary), `mixtral-8x7b-32768` (backup)
+- Sign up: https://console.groq.com
+
+**Firebase Free Tier:**
+- Firestore: 1GB storage, 50K reads/day, 20K writes/day
+- Auth: Unlimited users
+- Hosting: 10GB storage (we use Vercel instead)
+
+**YouTube Data API v3:**
+- 10,000 units/day free
+- Search = 100 units, Video details = 1 unit
+- Get key: https://console.cloud.google.com
+
+**Upstash Redis:**
+- 10,000 commands/day free
+- Sign up: https://upstash.com
+
+---
+
+## System Architecture
+
+```
+User types query
+        ↓
+Next.js Frontend (Vercel)
+        ↓
+Next.js API Route: POST /api/search
+        ↓
+[Check Upstash Redis cache] → Return cached if exists
+        ↓ (cache miss)
+┌─────────────────────────────────────────────┐
+│              AGENT PIPELINE                  │
+│                                             │
+│  1. Query Agent (Groq)                      │
+│     → Expand query, detect domain           │
+│                                             │
+│  2. Search Agent (YouTube API)              │
+│     → Fetch top 30 videos in parallel       │
+│                                             │
+│  3. For each video (parallel):              │
+│     a. Creator Agent → verify credentials   │
+│     b. Content Agent → analyze transcript   │
+│                                             │
+│  4. Ranking Agent (Groq)                    │
+│     → Score, sort, generate explanations    │
+└─────────────────────────────────────────────┘
+        ↓
+Firebase Firestore (store results)
+        ↓
+Upstash Redis (cache results, 1 day TTL)
+        ↓
+Return ranked, explained results to user
+```
+
+---
+
+## Folder Structure
+
+```
+yt-trust-agent/
+├── app/
+│   ├── page.tsx                    # Home / Search page
+│   ├── layout.tsx                  # Root layout with AuthProvider
+│   ├── results/
+│   │   └── page.tsx                # Results page (?q=query)
+│   ├── video/
+│   │   └── [id]/page.tsx           # Video detail + trust breakdown
+│   ├── creator/
+│   │   └── [id]/page.tsx           # Creator profile page
+│   ├── saved/
+│   │   └── page.tsx                # User's saved videos
+│   └── api/
+│       ├── search/
+│       │   └── route.ts            # POST: main search handler
+│       ├── creator/
+│       │   └── [id]/route.ts       # GET: creator trust profile
+│       ├── video/
+│       │   └── [id]/route.ts       # GET: video trust breakdown
+│       └── feedback/
+│           └── route.ts            # POST: thumbs up/down
+├── lib/
+│   ├── agents/
+│   │   ├── query-agent.ts          # Expand query, detect domain
+│   │   ├── search-agent.ts         # YouTube search + metadata
+│   │   ├── creator-agent.ts        # Creator credential verification
+│   │   ├── content-agent.ts        # Transcript analysis
+│   │   └── ranking-agent.ts        # Score, sort, explain
+│   ├── firebase/
+│   │   ├── config.ts               # Firebase client init
+│   │   ├── admin.ts                # Firebase admin init (server)
+│   │   └── db.ts                   # Firestore helper functions
+│   ├── youtube/
+│   │   ├── search.ts               # YouTube Data API search
+│   │   └── transcript.ts           # Transcript fetcher
+│   ├── groq/
+│   │   └── client.ts               # Groq client + base callGroq()
+│   ├── cache/
+│   │   └── redis.ts                # Upstash Redis helpers
+│   ├── scraper/
+│   │   ├── duckduckgo.ts           # DDG instant answer search
+│   │   ├── linkedin.ts             # LinkedIn public page scraper
+│   │   └── twitter.ts              # Nitter (Twitter mirror) scraper
+│   └── scoring/
+│       └── trust-score.ts          # Trust Score calculator
+├── components/
+│   ├── ui/                         # shadcn/ui components
+│   ├── search-bar.tsx
+│   ├── video-card.tsx
+│   ├── trust-badge.tsx
+│   ├── score-breakdown.tsx
+│   ├── creator-card.tsx
+│   ├── red-flag-alert.tsx
+│   ├── loading-skeleton.tsx
+│   └── search-progress.tsx
+├── types/
+│   └── index.ts                    # All TypeScript interfaces
+├── hooks/
+│   ├── useAuth.ts                  # Firebase auth hook
+│   └── useSearch.ts                # Search state hook
+├── providers/
+│   └── auth-provider.tsx           # Firebase auth context
+├── .env.local                      # Environment variables
+├── .env.example                    # Template (commit this)
+├── README.md
+└── package.json
+```
+
+---
+
+## Firestore Schema
+
+### Collection: `videos`
+```typescript
+// Document ID: YouTube videoId
+{
+  videoId: string,
+  title: string,
+  channelId: string,
+  channelName: string,
+  thumbnail: string,
+  description: string,
+  publishedAt: timestamp,
+  duration: string,           // "PT12M34S"
+  viewCount: number,
+  likeCount: number,
+  commentCount: number,
+  tags: string[],
+
+  // Content Analysis (from Content Agent)
+  contentScore: number,        // 0–100
+  isClickbait: boolean,
+  depthLevel: "surface" | "intermediate" | "deep",
+  topicsCovered: string[],
+  actuallyAnswersQuery: boolean,
+  transcriptSummary: string,
+  contentFlags: string[],      // ["no_transcript", "misleading_title"]
+
+  // Trust Score
+  trustScore: number,          // 0–100 final score
+  trustExplanation: string,    // Human-readable "Why we trust this"
+
+  analyzedAt: timestamp,
+  queryContext: string,        // What query was it analyzed for
+}
+```
+
+### Collection: `creators`
+```typescript
+// Document ID: YouTube channelId
+{
+  channelId: string,
+  channelName: string,
+  channelUrl: string,
+  subscriberCount: number,
+  videoCount: number,
+  channelAge: string,
+  channelDescription: string,
+  linkedSocials: {
+    linkedin: string | null,
+    twitter: string | null,
+    website: string | null,
+  },
+
+  // Credential Verification (from Creator Agent)
+  credentialScore: number,       // 0–100
+  topicExpertise: string[],      // ["finance", "investing"]
+  verifiedRoles: string[],       // ["VP at Goldman Sachs", "CFA Charterholder"]
+  educationSignals: string[],    // ["MBA Harvard", "CFA"]
+  webPresence: string[],         // Notable mentions, articles, books
+  redFlags: string[],            // ["expertise mismatch", "no verifiable credentials"]
+  credentialSummary: string,     // 1-2 sentence summary
+
+  verifiedAt: timestamp,
+}
+```
+
+### Collection: `searches`
+```typescript
+// Document ID: md5 hash of normalized query
+{
+  query: string,
+  normalizedQuery: string,
+  results: VideoResult[],   // Top 10 ranked results
+  totalAnalyzed: number,
+  cachedAt: timestamp,
+}
+```
+
+### Collection: `users`
+```typescript
+// Document ID: Firebase Auth uid
+{
+  uid: string,
+  email: string,
+  displayName: string,
+  photoURL: string,
+  savedVideos: string[],     // videoIds
+  searchHistory: {
+    query: string,
+    searchedAt: timestamp,
+  }[],
+  feedback: {
+    videoId: string,
+    type: "up" | "down",
+    givenAt: timestamp,
+  }[],
+  createdAt: timestamp,
+}
+```
+
+---
+
+## Agent Pipeline — Deep Dive
+
+### Agent 1: Query Agent
+**File:** `lib/agents/query-agent.ts`
+
+**Purpose:** Understand what the user actually wants, expand it into better search terms, identify the domain so we know what credentials to look for.
+
+**Groq Prompt:**
+```
+System: "You are an expert at understanding search intent and domain classification.
+         Always respond with valid JSON only."
+
+User: "I want to watch: {userQuery}"
+
+Output JSON:
+{
+  "expandedQueries": [
+    "original query",
+    "alternative phrasing 1",
+    "alternative phrasing 2"
+  ],
+  "domain": "finance",
+  "subDomain": "personal investing",
+  "contentType": "tutorial | explainer | news | opinion | case-study",
+  "audienceLevel": "beginner | intermediate | advanced",
+  "requiredExpertise": ["financial advisor", "CFA", "portfolio manager"],
+  "keyTopics": ["index funds", "dollar cost averaging", "diversification"]
+}
+```
+
+---
+
+### Agent 2: Search Agent
+**File:** `lib/agents/search-agent.ts`
+
+**Purpose:** Hit YouTube API with all expanded queries, fetch full metadata, deduplicate.
+
+**Flow:**
+```typescript
+// 1. Run all expanded queries in parallel
+const results = await Promise.all(
+  expandedQueries.map(q => searchYouTube(q, 15))
+)
+
+// 2. Deduplicate by videoId
+// 3. Enrich with /videos endpoint (views, likes, duration, tags)
+// 4. Return top 30 unique videos
+```
+
+**YouTube API calls:**
+- `GET /search?q={query}&part=snippet&type=video&maxResults=15`
+- `GET /videos?id={ids}&part=statistics,contentDetails,snippet`
+
+---
+
+### Agent 3: Creator Verification Agent
+**File:** `lib/agents/creator-agent.ts`
+
+**Purpose:** Find out if the creator is actually qualified to speak on the topic.
+
+**Sub-steps:**
+
+**Step 3a — DuckDuckGo Search**
+```typescript
+// URL: https://api.duckduckgo.com/?q={query}&format=json&no_redirect=1
+// Query: "{channelName} {domain} professional linkedin"
+// Also: "{channelName} site:linkedin.com"
+```
+
+**Step 3b — LinkedIn Scraper**
+```typescript
+// Scrape public LinkedIn profile using Axios + Cheerio
+// Extract: current title, company, years of experience, education, certifications
+// If blocked: use the DuckDuckGo abstract which often contains LinkedIn summary
+```
+
+**Step 3c — Twitter/X via Nitter**
+```typescript
+// Nitter is a free, open Twitter mirror
+// URL: https://nitter.net/{username}
+// Extract: bio, pinned tweet, follower count
+```
+
+**Step 3d — YouTube About Page**
+```typescript
+// Scrape https://www.youtube.com/@{handle}/about
+// Extract: channel description, linked external accounts
+// Creators often link their LinkedIn themselves — easiest trust signal
+```
+
+**Step 3e — Groq Credential Analysis**
+```
+System: "You are an expert at evaluating professional credentials and expertise.
+         Score credentials as they relate to the specific topic domain.
+         Always respond with valid JSON."
+
+User: "Topic domain: {domain}
+       Required expertise: {requiredExpertise}
+       
+       Creator data found:
+       - YouTube bio: {channelDescription}
+       - LinkedIn data: {linkedinData}
+       - Twitter bio: {twitterBio}
+       - Web search results: {webPresence}
+       
+       Score their credibility for this specific topic."
+
+Output JSON:
+{
+  "credentialScore": 78,
+  "topicMatch": true,
+  "verifiedRoles": ["Senior Financial Analyst at JP Morgan"],
+  "educationSignals": ["CFA Level 3", "MBA Finance"],
+  "webPresence": ["Featured in Bloomberg", "Co-authored finance textbook"],
+  "redFlags": [],
+  "credentialSummary": "12 years in institutional finance, CFA certified, directly relevant expertise"
+}
+```
+
+**Cache:** Store in Firestore for **7 days**. Check before running.
+
+---
+
+### Agent 4: Content Analysis Agent
+**File:** `lib/agents/content-agent.ts`
+
+**Purpose:** Confirm the video actually covers what the user asked for, at the right depth.
+
+**Transcript Fetching:**
+```typescript
+// npm package: youtube-captions-scraper
+import { getSubtitles } from 'youtube-captions-scraper'
+
+// Fetch transcript
+const transcript = await getSubtitles({ videoID: videoId, lang: 'en' })
+const fullText = transcript.map(t => t.text).join(' ')
+
+// If no transcript: flag it, default contentScore to 40
+```
+
+**Groq Prompt:**
+```
+System: "You analyze YouTube video transcripts for educational quality and relevance.
+         Be strict. Most videos are clickbait or surface-level.
+         Always respond with valid JSON."
+
+User: "User's query: {originalQuery}
+       Video title: {title}
+       Video transcript (first 3000 words): {transcript}
+       
+       Analyze this video."
+
+Output JSON:
+{
+  "contentScore": 85,
+  "isClickbait": false,
+  "thumbnailTitleMatch": true,
+  "depthLevel": "intermediate",
+  "topicsCovered": ["index funds", "expense ratios", "how to start"],
+  "actuallyAnswersQuery": true,
+  "informationDensity": "high | medium | low",
+  "sourcesOrDataMentioned": true,
+  "redFlags": [],
+  "contentSummary": "Covers index fund basics with specific fund examples and step-by-step setup",
+  "whatIsMissing": "Doesn't cover tax implications"
+}
+```
+
+**No transcript fallback:**
+```typescript
+if (!transcript) {
+  return {
+    contentScore: 40,
+    redFlags: ["transcript_unavailable"],
+    contentSummary: "Could not verify content — no captions available"
+  }
+}
+```
+
+**Cache:** Store in Firestore for **30 days**.
+
+---
+
+### Agent 5: Ranking & Explanation Agent
+**File:** `lib/agents/ranking-agent.ts`
+
+**Purpose:** Combine all scores, sort results, generate human-readable explanations.
+
+**Trust Score Calculation:**
+```typescript
+function calculateTrustScore(creator, content, ytSignals): number {
+  const credentialComponent = creator.credentialScore * 0.35
+  const contentComponent = content.contentScore * 0.35
+  const engagementComponent = calculateEngagement(ytSignals) * 0.20
+  const consistencyComponent = calculateConsistency(ytSignals) * 0.10
+
+  return Math.round(
+    credentialComponent + contentComponent +
+    engagementComponent + consistencyComponent
+  )
+}
+
+function calculateEngagement(video): number {
+  if (!video.viewCount || !video.likeCount) return 50
+  const ratio = (video.likeCount / video.viewCount) * 100
+  // Normalize: 4%+ like ratio = 100, 0.5% = 20
+  return Math.min(Math.round(ratio * 25), 100)
+}
+
+function calculateConsistency(channel): number {
+  // Based on: channel age, upload frequency, subscriber growth trajectory
+  // Normalize to 0-100
+  const ageScore = Math.min(channel.channelAgeYears * 10, 50)
+  const uploadScore = channel.videoCount > 50 ? 50 : channel.videoCount
+  return ageScore + uploadScore
+}
+```
+
+**Explanation Generator (Groq):**
+```
+System: "Write a 2-sentence explanation of why this video is recommended.
+         Be specific. Mention the creator's credentials and what makes the content good.
+         Never be generic. Output plain text only."
+
+User: "Creator: {credentialSummary}
+       Content: {contentSummary}
+       Score breakdown: Credentials {credentialScore}/100, Content {contentScore}/100
+       Red flags (if any): {redFlags}"
+
+Output: "Recommended because John has 12 years in institutional finance as a CFA ✓ 
+         and the video covers exactly what you asked with real fund comparisons and data."
+```
+
+---
+
+## Trust Score Formula
+
+```
+Trust Score (0–100) =
+  (Creator Credential Score  × 0.35) +
+  (Content Quality Score     × 0.35) +
+  (YouTube Engagement Score  × 0.20) +
+  (Channel Consistency Score × 0.10)
+```
+
+### Score Color Coding in UI
+- 🟢 **70–100** — Highly Trustworthy
+- 🟡 **40–69** — Moderately Trustworthy
+- 🔴 **0–39** — Low Trust / Proceed with Caution
+
+### Red Flags (shown in UI)
+- `no_transcript` — Content couldn't be verified
+- `expertise_mismatch` — Creator's credentials don't match this topic
+- `clickbait_detected` — Title/thumbnail doesn't match content
+- `no_verifiable_credentials` — No professional background found
+- `low_information_density` — Video is surface-level / filler content
+
+---
+
+## API Routes
+
+### `POST /api/search`
+```typescript
+// Body: { query: string }
+// Returns: { results: VideoResult[], query: string, totalAnalyzed: number }
+
+Flow:
+1. Normalize query, generate cache key (hash)
+2. Check Upstash Redis → return if hit (1 day TTL)
+3. Run Query Agent → expandedQueries, domain, requiredExpertise
+4. Run Search Agent → top 30 videos
+5. For each video (parallel, Promise.all):
+   a. Check Firestore cache for creator → skip agent if cached
+   b. Check Firestore cache for video → skip agent if cached
+   c. Run Creator Agent + Content Agent concurrently (Promise.all)
+   d. Calculate Trust Score
+   e. Save to Firestore
+6. Run Ranking Agent → sorted + explained results
+7. Cache full results in Upstash (1 day TTL)
+8. Return top 10 to frontend
+```
+
+### `GET /api/creator/[channelId]`
+```typescript
+// Returns full creator trust profile
+// Check Firestore first → run Creator Agent if not found
+```
+
+### `GET /api/video/[videoId]`
+```typescript
+// Returns full video analysis
+// Includes transcript summary, all scores, creator mini-profile
+```
+
+### `POST /api/feedback`
+```typescript
+// Body: { videoId: string, type: "up" | "down" }
+// Saves to user's Firestore document
+// Future: use to improve ranking weights
+```
+
+---
+
+## Frontend Pages & Components
+
+### Pages
+
+**Home (`/`)**
+- Centered search bar, clean Google-like design
+- Placeholder: "What do you want to learn today?"
+- Top right: Google Sign-in button
+- Below search: "Try: best python tutorials · compound interest explained · nutrition science basics"
+
+**Results (`/results?q=...`)**
+- Loading state with progress indicator:
+  - "🔍 Searching YouTube..."
+  - "🔎 Verifying creator credentials..."
+  - "📝 Analyzing video content..."
+  - "⭐ Ranking by trust score..."
+- Skeleton cards while loading
+- Sorted list of VideoCards
+- Filter bar: All / High Trust / By Domain
+
+**Video Detail (`/video/[id]`)**
+- Embedded YouTube player (top)
+- Full trust score breakdown widget
+- Transcript summary section
+- Topics covered (tags)
+- What's missing (from content analysis)
+- Red flags section (if any)
+- Creator mini-profile with credential badge
+- Similar trusted videos
+
+**Creator Profile (`/creator/[id]`)**
+- Channel banner + avatar
+- Credential score badge
+- Verified roles and education
+- Linked social accounts
+- Topic expertise tags
+- Red flags (if any)
+- All analyzed videos by this creator
+- "What we searched" — sources used to verify them
+
+**Saved Videos (`/saved`)**
+- Requires auth
+- Grid of saved VideoCards
+- Organized by topic
+
+---
+
+### Key Components
+
+**`<VideoCard />`**
+```
+[ Thumbnail ]  Title of the Video Here
+               Channel Name · 2.1M views · 14 min
+               🟢 Trust Score: 82/100
+               "Recommended because: Creator has CFA + 10yr finance experience ✓"
+               [Watch] [See Full Analysis] [♡ Save]
+```
+
+**`<TrustBadge />`**
+```
+⭐ Trust Score: 82 / 100
+━━━━━━━━━━━━━━━━━━━━━━━
+🎓 Creator Credentials  88/100
+📝 Content Quality      79/100
+📊 Engagement Rate      75/100
+📅 Channel Consistency  82/100
+```
+
+**`<RedFlagAlert />`**
+```
+⚠️ Note: No transcript available — content could not be fully verified
+⚠️ Note: Creator's expertise is in fitness, not nutrition science
+```
+
+**`<SearchProgress />`**
+```
+Step 1/4 ✅ Found 28 relevant videos
+Step 2/4 🔄 Verifying creator credentials...
+Step 3/4 ⏳ Analyzing video content
+Step 4/4 ⏳ Ranking results
+```
+
+---
+
+## Free Tier Limits & Strategy
+
+| Service | Daily Free Limit | Risk Level |
+|---|---|---|
+| YouTube Data API v3 | 10,000 units/day | Medium |
+| Groq API | ~14,400 req/day | Low |
+| Firebase Firestore reads | 50,000/day | Low |
+| Firebase Firestore writes | 20,000/day | Low |
+| Upstash Redis | 10,000 cmd/day | Low |
+
+### Caching Strategy (Stays Within Limits)
+
+**The key insight:** Cache aggressively. Once a creator or video is analyzed, the result is stored forever (with refresh schedules). Day 2 onwards, most requests are cache hits.
+
+```
+Creator trust score  → Firestore cache, refresh every 7 days
+Video analysis       → Firestore cache, refresh every 30 days
+Search results       → Upstash Redis cache, 1 day TTL
+Same query           → Return instantly from Redis, zero API calls
+```
+
+**YouTube API unit budget (per search):**
+- Search (3 queries × 100 units) = 300 units
+- Video details (30 videos × 1 unit) = 30 units
+- Total per fresh search ≈ 330 units
+- Allows ~30 unique fresh searches/day
+- After caching kicks in: most searches cost 0 units
+
+---
+
+## Phase-by-Phase Build Plan
+
+### Phase 0 — Repo & Project Setup (30 mins)
+
+1. Create GitHub repo: `yt-trust-agent` (public, MIT license)
+2. Clone locally
+3. Run: `npx create-next-app@latest . --typescript --tailwind --app`
+4. Run: `npx shadcn@latest init`
+5. Install all dependencies at once:
+   ```bash
+   npm install groq-sdk firebase firebase-admin
+   npm install @upstash/redis
+   npm install axios cheerio
+   npm install youtube-captions-scraper
+   npm install lucide-react
+   npx shadcn@latest add button input card badge skeleton tabs avatar separator
+   ```
+6. Create the full folder structure (see Folder Structure above)
+7. Create `.env.local` with all variable keys (values filled later)
+8. Create `.env.example` with empty values (commit this to GitHub)
+9. Push initial scaffold to GitHub
+
+---
+
+### Phase 1 — Firebase Setup (20 mins)
+
+1. Go to https://console.firebase.google.com
+2. Create project: `yt-trust-agent`
+3. Enable Firestore (start in production mode)
+4. Enable Authentication → Google provider
+5. Copy config → paste into `.env.local`
+6. Go to Project Settings → Service Accounts → Generate Admin SDK key
+7. Copy private key → paste into `.env.local`
+
+**Build `lib/firebase/config.ts`** — Firebase client SDK init  
+**Build `lib/firebase/admin.ts`** — Firebase admin SDK init (server-side only)  
+**Build `lib/firebase/db.ts`** — Helper functions:
+```typescript
+getVideo(videoId)
+setVideo(videoId, data)
+getCreator(channelId)
+setCreator(channelId, data)
+getSearch(queryHash)
+setSearch(queryHash, data)
+getUser(uid)
+updateUser(uid, data)
+```
+
+---
+
+### Phase 2 — TypeScript Types (15 mins)
+
+**Build `types/index.ts`** — Define ALL interfaces before writing any logic:
+
+```typescript
+interface VideoResult { ... }
+interface CreatorProfile { ... }
+interface ContentAnalysis { ... }
+interface TrustScore { ... }
+interface SearchQuery { ... }
+interface AgentResponse { ... }
+interface QueryAgentOutput { ... }
+interface CreatorAgentOutput { ... }
+interface ContentAgentOutput { ... }
+interface RankedResult { ... }
+```
+
+---
+
+### Phase 3 — Core Utilities (45 mins)
+
+**Build `lib/groq/client.ts`**
+```typescript
+// Initialize Groq client
+// Export: callGroq(systemPrompt, userPrompt, temperature?) → string
+// Model: "llama-3.3-70b-versatile"
+// Always JSON.parse response, handle errors
+```
+
+**Build `lib/cache/redis.ts`**
+```typescript
+// Initialize Upstash client
+// Export: cacheGet(key), cacheSet(key, value, ttlSeconds), cacheDelete(key)
+```
+
+**Build `lib/youtube/search.ts`**
+```typescript
+// Function: searchYouTube(query, maxResults)
+// Function: getVideoDetails(videoIds: string[])
+// Function: getChannelDetails(channelId)
+```
+
+**Build `lib/youtube/transcript.ts`**
+```typescript
+// Function: getTranscript(videoId) → string | null
+// Use youtube-captions-scraper
+// Handle: no captions, private videos, errors → return null
+// Truncate to first 4000 words (enough for analysis)
+```
+
+**Build `lib/scraper/duckduckgo.ts`**
+```typescript
+// Function: searchDDG(query) → SearchResult[]
+// URL: https://api.duckduckgo.com/?q={query}&format=json&no_redirect=1
+// Parse: AbstractText, RelatedTopics, Results
+```
+
+**Build `lib/scraper/linkedin.ts`**
+```typescript
+// Function: scrapeLinkedIn(profileUrl) → LinkedInData | null
+// Use Axios + Cheerio on public profile URL
+// Extract: headline, current role, company, education summary
+// Handle blocks gracefully → return null
+```
+
+**Build `lib/scraper/twitter.ts`**
+```typescript
+// Function: scrapeTwitter(username) → TwitterData | null
+// Use Nitter: https://nitter.net/{username}
+// Extract: bio, follower count, pinned tweet
+```
+
+---
+
+### Phase 4 — Agent Pipeline (2 hours)
+
+Build agents in this order. Test each one independently before moving to next.
+
+**Build `lib/agents/query-agent.ts`**
+- Input: raw user query string
+- Call Groq with query expansion prompt
+- Output: `QueryAgentOutput` (expanded queries, domain, required expertise)
+
+**Build `lib/agents/search-agent.ts`**
+- Input: `QueryAgentOutput`
+- Run all expanded queries against YouTube API in parallel
+- Deduplicate by videoId
+- Fetch full video metadata
+- Output: `VideoResult[]` (top 30)
+
+**Build `lib/agents/creator-agent.ts`** ← Most complex
+- Input: channelId, channelName, domain, requiredExpertise
+- Check Firestore cache first
+- If not cached: run DuckDuckGo → LinkedIn → Nitter → YouTube About scraping
+- Send all data to Groq for credential analysis
+- Save result to Firestore with timestamp
+- Output: `CreatorAgentOutput`
+
+**Build `lib/agents/content-agent.ts`**
+- Input: videoId, title, originalQuery
+- Check Firestore cache first
+- Fetch transcript (handle null)
+- Send to Groq for content analysis
+- Save result to Firestore
+- Output: `ContentAgentOutput`
+
+**Build `lib/scoring/trust-score.ts`**
+- Input: `CreatorAgentOutput`, `ContentAgentOutput`, YouTube signals
+- Apply formula (see Trust Score Formula section)
+- Output: `TrustScore` with component breakdown
+
+**Build `lib/agents/ranking-agent.ts`**
+- Input: array of `VideoResult` with scores
+- Sort by Trust Score descending
+- Call Groq to generate "why we trust this" explanation for each
+- Output: sorted `RankedResult[]` with explanations
+
+---
+
+### Phase 5 — API Routes (30 mins)
+
+**Build `app/api/search/route.ts`**
+```typescript
+// POST handler
+// 1. Validate body
+// 2. Check Redis cache
+// 3. Run full agent pipeline
+// 4. Cache results
+// 5. Return top 10
+```
+
+**Build `app/api/creator/[id]/route.ts`**
+```typescript
+// GET handler
+// Check Firestore → run Creator Agent if missing → return
+```
+
+**Build `app/api/video/[id]/route.ts`**
+```typescript
+// GET handler
+// Return full video analysis from Firestore
+```
+
+**Build `app/api/feedback/route.ts`**
+```typescript
+// POST handler
+// Require auth (verify Firebase ID token)
+// Save feedback to user document
+```
+
+---
+
+### Phase 6 — Frontend (1 hour)
+
+**Build `providers/auth-provider.tsx`** — Firebase auth context  
+**Build `hooks/useAuth.ts`** — Current user, sign in, sign out  
+
+**Build `components/search-bar.tsx`** — Input + submit  
+**Build `components/trust-badge.tsx`** — Score display with color  
+**Build `components/score-breakdown.tsx`** — Full component breakdown  
+**Build `components/video-card.tsx`** — Main result card  
+**Build `components/red-flag-alert.tsx`** — Warning banner  
+**Build `components/search-progress.tsx`** — Step-by-step loading  
+**Build `components/loading-skeleton.tsx`** — Skeleton cards  
+
+**Build `app/page.tsx`** — Home with centered search  
+**Build `app/results/page.tsx`** — Results with loading + VideoCards  
+**Build `app/video/[id]/page.tsx`** — Video detail + full breakdown  
+**Build `app/creator/[id]/page.tsx`** — Creator profile  
+**Build `app/saved/page.tsx`** — Auth-gated saved videos  
+
+---
+
+### Phase 7 — Polish & Deploy (30 mins)
+
+1. Add error boundaries (`app/error.tsx`, `app/not-found.tsx`)
+2. Add loading states (`app/loading.tsx`)
+3. Verify all env variables are set
+4. Test full flow end-to-end:
+   - Search → Results → Video Detail → Creator Profile
+   - Sign in → Save video → View saved
+5. Connect GitHub repo to Vercel (https://vercel.com)
+6. Add all environment variables in Vercel dashboard
+7. Deploy → get live URL
+8. Update README with live URL and setup instructions
+9. Share open-source repo 🚀
+
+---
+
+## Open Code Prompts — Copy & Paste
+
+Use these exact prompts in sequence with your AI coding tool (Cursor, Windsurf, etc.)
+
+---
+
+### Prompt 1 — Project Foundation
+```
+Create a Next.js 14 TypeScript project with Tailwind CSS and App Router already set up.
+
+Initialize shadcn/ui and install these components: button, input, card, badge, skeleton, tabs, avatar, separator.
+
+Install these npm packages:
+- groq-sdk
+- firebase
+- firebase-admin
+- @upstash/redis
+- axios
+- cheerio
+- youtube-captions-scraper
+- lucide-react
+
+Create this exact folder structure:
+app/api/search/route.ts
+app/api/creator/[id]/route.ts
+app/api/video/[id]/route.ts
+app/api/feedback/route.ts
+app/(pages)/results/page.tsx
+app/(pages)/video/[id]/page.tsx
+app/(pages)/creator/[id]/page.tsx
+app/(pages)/saved/page.tsx
+lib/agents/query-agent.ts
+lib/agents/search-agent.ts
+lib/agents/creator-agent.ts
+lib/agents/content-agent.ts
+lib/agents/ranking-agent.ts
+lib/firebase/config.ts
+lib/firebase/admin.ts
+lib/firebase/db.ts
+lib/youtube/search.ts
+lib/youtube/transcript.ts
+lib/groq/client.ts
+lib/cache/redis.ts
+lib/scraper/duckduckgo.ts
+lib/scraper/linkedin.ts
+lib/scraper/twitter.ts
+lib/scoring/trust-score.ts
+components/search-bar.tsx
+components/video-card.tsx
+components/trust-badge.tsx
+components/score-breakdown.tsx
+components/creator-card.tsx
+components/red-flag-alert.tsx
+components/loading-skeleton.tsx
+components/search-progress.tsx
+types/index.ts
+hooks/useAuth.ts
+providers/auth-provider.tsx
+
+Each file should export an empty placeholder function or component so imports don't break.
+
+Create .env.example with these keys (empty values):
+GROQ_API_KEY=
+YOUTUBE_API_KEY=
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+FIREBASE_ADMIN_PRIVATE_KEY=
+FIREBASE_ADMIN_CLIENT_EMAIL=
+```
+
+---
+
+### Prompt 2 — TypeScript Types
+```
+Build the complete TypeScript types in types/index.ts for a YouTube trust scoring application.
+
+Define these interfaces with all relevant fields:
+
+VideoResult — YouTube video with metadata (videoId, title, channelId, channelName, thumbnail, viewCount, likeCount, duration, publishedAt, tags, description)
+
+CreatorProfile — Creator verification data (channelId, name, credentialScore 0-100, topicExpertise string[], verifiedRoles string[], educationSignals string[], redFlags string[], credentialSummary string, verifiedAt)
+
+ContentAnalysis — Video content analysis (videoId, contentScore 0-100, isClickbait boolean, depthLevel 'surface'|'intermediate'|'deep', topicsCovered string[], actuallyAnswersQuery boolean, transcriptSummary string, redFlags string[], analyzedAt)
+
+TrustScore — Final score (overall 0-100, credentialComponent number, contentComponent number, engagementComponent number, consistencyComponent number, explanation string, redFlags string[])
+
+QueryAgentOutput — (expandedQueries string[], domain string, subDomain string, contentType string, audienceLevel string, requiredExpertise string[], keyTopics string[])
+
+RankedResult — Combines VideoResult + CreatorProfile + ContentAnalysis + TrustScore
+
+SearchResponse — (results RankedResult[], query string, totalAnalyzed number, cachedAt string | null)
+
+Export all interfaces. Use strict TypeScript.
+```
+
+---
+
+### Prompt 3 — Core Utilities
+```
+Build these four utility files for a YouTube trust agent app:
+
+1. lib/groq/client.ts
+- Import and initialize Groq SDK using process.env.GROQ_API_KEY
+- Export async function callGroq(systemPrompt: string, userPrompt: string, temperature = 0.3): Promise<string>
+- Always use model "llama-3.3-70b-versatile", max_tokens 2000
+- Return the text content of the first message
+- Wrap in try/catch, throw descriptive errors
+
+2. lib/cache/redis.ts
+- Import and initialize @upstash/redis using env vars UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN
+- Export: cacheGet(key: string): Promise<any | null>
+- Export: cacheSet(key: string, value: any, ttlSeconds: number): Promise<void>
+- Export: cacheDelete(key: string): Promise<void>
+- Serialize/deserialize JSON automatically
+
+3. lib/youtube/search.ts
+- Export searchYouTube(query: string, maxResults = 15): Promise<VideoResult[]>
+  Uses YouTube Data API v3 /search endpoint with key from YOUTUBE_API_KEY
+  Returns array mapped to VideoResult type
+- Export getVideoDetails(videoIds: string[]): Promise<VideoResult[]>
+  Fetches /videos?part=statistics,contentDetails,snippet
+  Merges with existing VideoResult data
+
+4. lib/youtube/transcript.ts
+- Import youtube-captions-scraper
+- Export getTranscript(videoId: string): Promise<string | null>
+- Return the full transcript text joined as a string
+- Truncate to 4000 words maximum
+- On any error or no captions: return null
+```
+
+---
+
+### Prompt 4 — Scraper Utilities
+```
+Build three web scraper utilities for a creator verification system:
+
+1. lib/scraper/duckduckgo.ts
+- Export searchDDG(query: string): Promise<{title: string, url: string, snippet: string}[]>
+- Use axios to fetch: https://api.duckduckgo.com/?q={encodedQuery}&format=json&no_redirect=1&no_html=1
+- Parse AbstractText and RelatedTopics from response
+- Return top 5 results as clean objects
+- Handle errors gracefully, return empty array on failure
+
+2. lib/scraper/linkedin.ts
+- Export scrapeLinkedIn(searchQuery: string): Promise<{headline: string, roles: string[], education: string[], rawText: string} | null>
+- Use DuckDuckGo to find LinkedIn URL first: searchDDG("{searchQuery} site:linkedin.com")
+- Use axios + cheerio to scrape the public LinkedIn page
+- Extract: h1 (name), .pv-text-details__left-panel (headline), experience entries, education entries
+- If blocked or error: return null (this is expected and handled upstream)
+
+3. lib/scraper/twitter.ts  
+- Export scrapeTwitter(username: string): Promise<{bio: string, followers: string, pinnedTweet: string} | null>
+- Use axios + cheerio to scrape: https://nitter.net/{username}
+- Extract: .profile-bio, .followers count, first .pinned tweet text
+- If error: return null
+
+All scrapers should:
+- Set a realistic User-Agent header
+- Have 10 second timeout
+- Return null on any failure (never throw)
+```
+
+---
+
+### Prompt 5 — Creator Agent (Core)
+```
+Build lib/agents/creator-agent.ts — the most important agent in the app.
+
+This agent verifies if a YouTube creator is legitimately qualified on a topic.
+
+Import and use: callGroq from lib/groq/client, searchDDG, scrapeLinkedIn, scrapeTwitter, firebase db helpers, and all relevant types.
+
+Export async function runCreatorAgent(params: {
+  channelId: string,
+  channelName: string,
+  channelDescription: string,
+  domain: string,
+  requiredExpertise: string[]
+}): Promise<CreatorProfile>
+
+Implementation:
+1. Check Firestore cache: getCreator(channelId) — if found and verifiedAt < 7 days ago, return cached
+2. Run these in parallel with Promise.all:
+   a. searchDDG("{channelName} {domain} professional credentials")
+   b. searchDDG("{channelName} site:linkedin.com")
+   c. scrapeLinkedIn("{channelName} {domain}")
+   d. scrapeTwitter — first get Twitter handle from channel description or DDG search
+3. Compile all scraped data into a single context string
+4. Call callGroq with this system prompt:
+   "You are an expert at evaluating professional credentials for content creators.
+    Analyze the provided data and score the creator's credibility specifically for the topic domain.
+    Consider: job titles, companies, education, certifications, years of experience, notable achievements.
+    A mismatch between expertise and topic should heavily reduce the score.
+    Always respond with valid JSON only. No markdown, no explanation outside JSON."
+   
+   And user prompt with all scraped data + domain + requiredExpertise
+
+5. Parse JSON response into CreatorProfile
+6. Save to Firestore with setCreator(channelId, profile)
+7. Return profile
+
+The Groq prompt should request this exact JSON shape:
+{
+  "credentialScore": number (0-100),
+  "topicMatch": boolean,
+  "verifiedRoles": string[],
+  "educationSignals": string[],
+  "webPresence": string[],
+  "redFlags": string[],
+  "credentialSummary": string
+}
+```
+
+---
+
+### Prompt 6 — Content Agent
+```
+Build lib/agents/content-agent.ts
+
+Export async function runContentAgent(params: {
+  videoId: string,
+  title: string,
+  description: string,
+  originalQuery: string,
+  domain: string
+}): Promise<ContentAnalysis>
+
+Implementation:
+1. Check Firestore: getVideo(videoId) — return cached if exists and analyzedAt < 30 days ago
+2. Fetch transcript: getTranscript(videoId) — handle null case
+3. If transcript is null:
+   - Return ContentAnalysis with contentScore: 40, redFlags: ["transcript_unavailable"]
+4. If transcript exists:
+   - Call callGroq with analysis prompt
+   - System: "You analyze YouTube video transcripts for educational quality. Be strict and honest. Most videos are surface level. Respond with valid JSON only."
+   - User: include originalQuery, domain, video title, description, first 3500 words of transcript
+   - Request JSON: { contentScore, isClickbait, depthLevel, topicsCovered, actuallyAnswersQuery, informationDensity, sourcesOrDataMentioned, redFlags, contentSummary, whatIsMissing }
+5. Parse response into ContentAnalysis
+6. Save to Firestore
+7. Return result
+```
+
+---
+
+### Prompt 7 — Query Agent + Search Agent + Ranking Agent
+```
+Build three agent files:
+
+1. lib/agents/query-agent.ts
+Export runQueryAgent(userQuery: string): Promise<QueryAgentOutput>
+- Call callGroq asking it to expand the query into 3 search variations
+- Detect the domain (finance, health, tech, cooking, etc.)
+- Identify what credentials would make someone trustworthy on this topic
+- Return QueryAgentOutput with: expandedQueries, domain, subDomain, contentType, audienceLevel, requiredExpertise, keyTopics
+
+2. lib/agents/search-agent.ts
+Export runSearchAgent(queryOutput: QueryAgentOutput): Promise<VideoResult[]>
+- Run searchYouTube for each expandedQuery in parallel (Promise.all)
+- Deduplicate results by videoId
+- Fetch full metadata for all unique videos with getVideoDetails
+- Return top 30 unique VideoResult items sorted by view count initially
+
+3. lib/agents/ranking-agent.ts
+Export runRankingAgent(results: RankedResult[]): Promise<RankedResult[]>
+- Sort by trustScore descending
+- For top 10 results, call callGroq to generate a 1-2 sentence "why we trust this" explanation for each
+- The explanation should be specific: mention the creator's actual credentials and what makes the content good
+- Return sorted array with explanations filled in
+- Cap at top 10 results returned
+```
+
+---
+
+### Prompt 8 — Trust Score + Main API Route
+```
+Build two files:
+
+1. lib/scoring/trust-score.ts
+Export calculateTrustScore(creator: CreatorProfile, content: ContentAnalysis, video: VideoResult): TrustScore
+
+Formula (apply exactly):
+- credentialComponent = creator.credentialScore * 0.35
+- contentComponent = content.contentScore * 0.35
+- engagementComponent = calculateEngagementScore(video) * 0.20
+- consistencyComponent = 70 * 0.10 (default 70 until we have more channel data)
+- overall = Math.round(sum of all components)
+
+calculateEngagementScore: (likeCount / viewCount) * 100, normalized to 0-100, min 20 if ratio exists
+
+Combine all redFlags from creator and content into one array.
+Return complete TrustScore object.
+
+2. app/api/search/route.ts
+POST handler that orchestrates the full pipeline:
+
+1. Parse and validate request body { query: string }
+2. Create cache key: md5/hash of lowercased trimmed query
+3. Check Upstash Redis for cached results → if found, return immediately with { cached: true }
+4. Run runQueryAgent(query)
+5. Run runSearchAgent(queryOutput)
+6. For each video, run in parallel (Promise.allSettled):
+   - runCreatorAgent({ channelId, channelName, channelDescription, domain, requiredExpertise })
+   - runContentAgent({ videoId, title, description, originalQuery: query, domain })
+   Then calculateTrustScore for each
+7. Combine into RankedResult[]
+8. Run runRankingAgent(results)
+9. Cache in Upstash with 86400 TTL (1 day)
+10. Return { results: top10, query, totalAnalyzed: results.length }
+
+Handle errors at each step — if creator or content agent fails for a video, give default scores (50) rather than failing the whole request.
+```
+
+---
+
+### Prompt 9 — Home Page + Search Bar
+```
+Build the home page and search bar for YT Trust Agent.
+
+app/page.tsx:
+- Clean, centered layout (full viewport height, flex center)
+- Large heading: "Find videos you can actually trust"
+- Subheading: "AI-powered search that verifies creator credentials and content quality"
+- SearchBar component below
+- Below that: suggestion chips "Try: compound interest · python for beginners · nutrition science"
+- Top right corner: Sign in with Google button (use Firebase Auth)
+- No sidebar, no clutter — Google search-like simplicity
+- Tailwind CSS only, no custom CSS
+
+components/search-bar.tsx:
+- Large input with search icon (lucide-react)
+- On submit: navigate to /results?q={query} using Next.js router
+- Handle Enter key and button click
+- Placeholder: "What do you want to learn today?"
+- Rounded, bordered, with subtle shadow
+- Full width on mobile, 600px max on desktop
+```
+
+---
+
+### Prompt 10 — Results Page
+```
+Build app/results/page.tsx and the VideoCard + TrustBadge components.
+
+app/results/page.tsx:
+- Read ?q= query param from searchParams
+- On mount: fetch POST /api/search with the query
+- While loading: show SearchProgress component + 5 skeleton cards
+- On success: show list of VideoCards sorted by trust score
+- On error: show friendly error message with retry button
+
+components/search-progress.tsx:
+Show a step-by-step progress indicator while search runs:
+Step 1: "🔍 Searching YouTube..." (immediate)
+Step 2: "🔎 Verifying creator credentials..." (after 2s)
+Step 3: "📝 Analyzing video content..." (after 5s)
+Step 4: "⭐ Ranking by trust score..." (after 9s)
+Auto-advance through steps using useEffect + setTimeout
+
+components/trust-badge.tsx:
+Props: score (number), size ('sm' | 'lg')
+- Small: just a colored badge "🟢 82" 
+- Large: full breakdown with all 4 components listed
+Colors: green for 70+, yellow for 40-69, red for 0-39
+
+components/video-card.tsx:
+Props: result (RankedResult)
+Show:
+- Thumbnail (left, fixed size)
+- Title, channel name, view count, duration (right)
+- TrustBadge (small) 
+- trustExplanation text in italic
+- Red flag alerts if redFlags exist (red text, warning icon)
+- Buttons: Watch (opens YouTube), Full Analysis (links to /video/[id]), Save (auth required)
+Use shadcn Card component as base.
+```
+
+---
+
+## Environment Variables Reference
+
+```bash
+# AI
+GROQ_API_KEY=                        # https://console.groq.com
+
+# YouTube
+YOUTUBE_API_KEY=                     # https://console.cloud.google.com → YouTube Data API v3
+
+# Upstash Redis
+UPSTASH_REDIS_REST_URL=              # https://upstash.com → Create Redis database
+UPSTASH_REDIS_REST_TOKEN=            # Same dashboard
+
+# Firebase (Client — exposed to browser, safe)
+NEXT_PUBLIC_FIREBASE_API_KEY=        # Firebase console → Project Settings
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+
+# Firebase Admin (Server only — never expose)
+FIREBASE_ADMIN_PRIVATE_KEY=          # Firebase console → Service Accounts → Generate key
+FIREBASE_ADMIN_CLIENT_EMAIL=         # Same JSON file
+```
+
+---
+
+## Getting Started Checklist
+
+For any new developer picking this up:
+
+**Accounts to create (all free):**
+- [ ] Google account (for Firebase + YouTube API)
+- [ ] https://console.groq.com — get GROQ_API_KEY
+- [ ] https://console.cloud.google.com — enable YouTube Data API v3, get key
+- [ ] https://console.firebase.google.com — create project, enable Firestore + Auth
+- [ ] https://upstash.com — create Redis database, get URL + token
+- [ ] https://vercel.com — connect GitHub repo for deployment
+
+**Local setup:**
+- [ ] Clone repo: `git clone https://github.com/{your-username}/yt-trust-agent`
+- [ ] Install deps: `npm install`
+- [ ] Copy `.env.example` to `.env.local` and fill all values
+- [ ] Run dev server: `npm run dev`
+- [ ] Open http://localhost:3000
+
+**First test:**
+- Search "compound interest explained"
+- Should see loading progress → ranked results with trust scores
+
+**Deploy:**
+- Connect GitHub to Vercel
+- Add all `.env.local` values to Vercel Environment Variables
+- Deploy — done
+
+---
+
+## Project Info
+
+| Field | Value |
+|---|---|
+| **Project Name** | YT Trust Agent |
+| **Type** | Open Source |
+| **License** | MIT |
+| **Stack** | Next.js 14, TypeScript, Firebase, Groq |
+| **Cost** | $0 (fully free tier) |
+| **Goal** | Help people find trustworthy YouTube content |
+
+> Built to solve a real problem: too much YouTube content, too little trust signal. The agent doesn't just find relevant videos — it verifies the humans making them.

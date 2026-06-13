@@ -8,7 +8,7 @@
 | Phase 1 | Firebase Setup | COMPLETED |
 | Phase 2 | TypeScript Types | COMPLETED |
 | Phase 3 | Core Utilities | COMPLETED |
-| Phase 4 | Agent Pipeline | PENDING |
+| Phase 4 | Agent Pipeline | COMPLETED |
 | Phase 5 | API Routes | PENDING |
 | Phase 6 | Frontend | PENDING |
 | Phase 7 | Polish & Deploy | PENDING |
@@ -74,14 +74,15 @@
 
 ---
 
-## Phase 4 — Agent Pipeline ⏳ PENDING
+## Phase 4 — Agent Pipeline ✅ COMPLETED
 
-**To Build:**
-- [ ] lib/agents/query-agent.ts — Query expansion + domain detection
-- [ ] lib/agents/search-agent.ts — YouTube search orchestration
-- [ ] lib/agents/creator-agent.ts — Creator credential verification
-- [ ] lib/agents/content-agent.ts — Transcript content analysis
-- [ ] lib/agents/ranking-agent.ts — Score sorting + explanation generation
+**Completed:**
+- [x] lib/agents/query-agent.ts — Query expansion + domain detection via Groq
+- [x] lib/agents/search-agent.ts — YouTube search orchestration + deduplication
+- [x] lib/agents/creator-agent.ts — Creator credential verification (DuckDuckGo + LinkedIn + Twitter + Groq analysis)
+- [x] lib/agents/content-agent.ts — Transcript content analysis via Groq
+- [x] lib/agents/ranking-agent.ts — Score sorting + explanation generation
+- [x] Build passes with all agents
 
 ---
 
@@ -121,9 +122,9 @@
 
 ## Status Summary
 
-**Completed Phases:** Phase 0, Phase 1, Phase 2, Phase 3
-**Current Phase:** Phase 4 — Agent Pipeline
-**Next Phase:** Phase 5 — API Routes
+**Completed Phases:** Phase 0, Phase 1, Phase 2, Phase 3, Phase 4
+**Current Phase:** Phase 5 — API Routes
+**Next Phase:** Phase 6 — Frontend
 
 ---
 

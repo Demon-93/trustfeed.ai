@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getVideo, getCreator } from "@/lib/firebase/db"
 
 export async function GET(
   request: NextRequest,
@@ -6,11 +7,37 @@ export async function GET(
 ) {
   try {
     const { id } = await params
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Video ID is required" },
+        { status: 400 }
+      )
+    }
+
+    const video = await getVideo(id)
+
+    if (!video) {
+      return NextResponse.json(
+        { error: "Video not found. Run a search first to analyze this video." },
+        { status: 404 }
+      )
+    }
+
+    let creator = null
+    if (video.channelId) {
+      creator = await getCreator(video.channelId)
+    }
+
     return NextResponse.json({
-      videoId: id,
-      message: "Video endpoint not yet implemented",
+      video,
+      creator,
     })
-  } catch {
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } catch (error) {
+    console.error("Video API error:", error)
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    )
   }
 }

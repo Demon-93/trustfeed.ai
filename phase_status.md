@@ -9,7 +9,7 @@
 | Phase 2 | TypeScript Types | COMPLETED |
 | Phase 3 | Core Utilities | COMPLETED |
 | Phase 4 | Agent Pipeline | COMPLETED |
-| Phase 5 | API Routes | PENDING |
+| Phase 5 | API Routes | COMPLETED |
 | Phase 6 | Frontend | PENDING |
 | Phase 7 | Polish & Deploy | PENDING |
 
@@ -86,13 +86,15 @@
 
 ---
 
-## Phase 5 — API Routes ⏳ PENDING
+## Phase 5 — API Routes ✅ COMPLETED
 
-**To Build:**
-- [ ] app/api/search/route.ts — Main search pipeline handler
-- [ ] app/api/creator/[id]/route.ts — Creator profile endpoint
-- [ ] app/api/video/[id]/route.ts — Video detail endpoint
-- [ ] app/api/feedback/route.ts — User feedback endpoint
+**Completed:**
+- [x] app/api/search/route.ts — Main search pipeline (query → search → analyze → rank → cache → return)
+- [x] app/api/creator/[id]/route.ts — Creator profile endpoint (fetches from Firestore)
+- [x] app/api/video/[id]/route.ts — Video detail endpoint (fetches video + creator from Firestore)
+- [x] app/api/feedback/route.ts — User feedback endpoint (saves thumbs up/down to Firestore)
+- [x] Fixed Firebase admin lazy initialization (no build-time errors)
+- [x] Build passes with all API routes
 
 ---
 
@@ -122,9 +124,9 @@
 
 ## Status Summary
 
-**Completed Phases:** Phase 0, Phase 1, Phase 2, Phase 3, Phase 4
-**Current Phase:** Phase 5 — API Routes
-**Next Phase:** Phase 6 — Frontend
+**Completed Phases:** Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5
+**Current Phase:** Phase 6 — Frontend
+**Next Phase:** Phase 7 — Polish & Deploy
 
 ---
 

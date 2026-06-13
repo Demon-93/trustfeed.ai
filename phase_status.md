@@ -10,7 +10,7 @@
 | Phase 3 | Core Utilities | COMPLETED |
 | Phase 4 | Agent Pipeline | COMPLETED |
 | Phase 5 | API Routes | COMPLETED |
-| Phase 6 | Frontend | PENDING |
+| Phase 6 | Frontend | COMPLETED |
 | Phase 7 | Polish & Deploy | PENDING |
 
 ---
@@ -98,16 +98,20 @@
 
 ---
 
-## Phase 6 — Frontend ⏳ PENDING
+## Phase 6 — Frontend ✅ COMPLETED
 
-**To Build:**
-- [ ] app/page.tsx — Home with search bar + suggestions
-- [ ] app/results/page.tsx — Results with loading + VideoCards
-- [ ] app/video/[id]/page.tsx — Video detail + trust breakdown
-- [ ] app/creator/[id]/page.tsx — Creator profile
-- [ ] app/saved/page.tsx — Auth-gated saved videos
-- [ ] components/video-card.tsx — Main result card
-- [ ] providers/auth-provider.tsx — Firebase auth context (exists, needs wiring)
+**Completed:**
+- [x] app/page.tsx — Home with search bar, suggestions, and Google sign-in button
+- [x] app/results/page.tsx — Results with Suspense boundary, loading progress, and VideoCards
+- [x] app/video/[id]/page.tsx — Video detail with embedded player, trust breakdown, content analysis, creator profile, topics
+- [x] app/creator/[id]/page.tsx — Creator profile with credential score, verified roles, education, web presence, topic expertise
+- [x] app/saved/page.tsx — Auth-gated saved videos with sign-in prompt
+- [x] components/video-card.tsx — Main result card with trust badge, red flags, watch/full analysis buttons
+- [x] Fixed all `asChild` prop errors (Button doesn't support asChild in this shadcn setup)
+- [x] Fixed `redFlags` reference on video detail page (moved from video to creator)
+- [x] Fixed `showSaveButton` prop (removed, not in VideoCard interface)
+- [x] Added Suspense boundary for useSearchParams in results page
+- [x] Build passes with all frontend pages
 
 ---
 
@@ -124,8 +128,8 @@
 
 ## Status Summary
 
-**Completed Phases:** Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5
-**Current Phase:** Phase 6 — Frontend
+**Completed Phases:** Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6
+**Current Phase:** Phase 7 — Polish & Deploy
 **Next Phase:** Phase 7 — Polish & Deploy
 
 ---

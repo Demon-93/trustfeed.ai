@@ -8,20 +8,28 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 }
 
-let auth: Auth | null = null
+let firebaseApp: FirebaseApp
+let firebaseAuth: Auth
 
-function getFirebaseApp(): FirebaseApp {
+if (typeof window !== "undefined") {
   if (getApps().length === 0) {
-    return initializeApp(firebaseConfig)
+    firebaseApp = initializeApp(firebaseConfig)
+  } else {
+    firebaseApp = getApps()[0]
   }
-  return getApps()[0]
+  firebaseAuth = getAuth(firebaseApp)
 }
 
-function getFirebaseAuth(): Auth {
-  if (!auth) {
-    auth = getAuth(getFirebaseApp())
+export function getApp(): FirebaseApp {
+  if (!firebaseApp) {
+    throw new Error("Firebase not initialized. Make sure NEXT_PUBLIC_FIREBASE_* env vars are set.")
   }
-  return auth
+  return firebaseApp
 }
 
-export { getFirebaseApp as app, getFirebaseAuth as auth }
+export function getFirebaseAuth(): Auth {
+  if (!firebaseAuth) {
+    throw new Error("Firebase Auth not initialized. Make sure NEXT_PUBLIC_FIREBASE_* env vars are set.")
+  }
+  return firebaseAuth
+}

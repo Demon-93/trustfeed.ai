@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect, createContext, useContext, ReactNode } from "react"
-import { User, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, getAuth } from "firebase/auth"
-import { app } from "@/lib/firebase/config"
+import { User, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth"
+import { getFirebaseAuth } from "@/lib/firebase/config"
 
 interface AuthContextType {
   user: User | null
@@ -22,40 +22,31 @@ export function useAuth() {
   return useContext(AuthContext)
 }
 
-function getFirebaseAuth() {
-  if (typeof window === "undefined") return null
-  return getAuth(app())
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const auth = getFirebaseAuth()
-    if (!auth) {
+    try {
+      const auth = getFirebaseAuth()
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        setUser(user)
+        setLoading(false)
+      })
+      return () => unsubscribe()
+    } catch {
       setLoading(false)
-      return
     }
-
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user)
-      setLoading(false)
-    })
-
-    return () => unsubscribe()
   }, [])
 
   const signIn = async () => {
     const auth = getFirebaseAuth()
-    if (!auth) throw new Error("Firebase not initialized")
     const provider = new GoogleAuthProvider()
     await signInWithPopup(auth, provider)
   }
 
   const logout = async () => {
     const auth = getFirebaseAuth()
-    if (!auth) throw new Error("Firebase not initialized")
     await signOut(auth)
   }
 
